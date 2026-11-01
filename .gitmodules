@@ -1,0 +1,6 @@
+[submodule "secure_communication_gateway_soc/rtl/third_party/Cores-VeeR-EL2"]
+	path = secure_communication_gateway_soc/rtl/third_party/Cores-VeeR-EL2
+	url = https://github.com/chipsalliance/Cores-VeeR-EL2.git
+[submodule "secure_communication_gateway_soc/rtl/third_party/verilog-axi"]
+	path = secure_communication_gateway_soc/rtl/third_party/verilog-axi
+	url = https://github.com/alexforencich/verilog-axi.git

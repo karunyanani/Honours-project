@@ -1,0 +1,20 @@
+# IDE and System Files
+/.impulse/
+.vscode/
+.idea/
+*.swp
+*.bak
+*~
+.DS_Store
+Thumbs.db
+
+# Build and Binary Artifacts
+secure_communication_gateway_soc/a.out
+*.vcd
+*.fsdb
+*.log
+
+# Simulation executables & temporary files
+secure_communication_gateway_soc/build/*
+!secure_communication_gateway_soc/build/*.hex
+!secure_communication_gateway_soc/build/.gitkeep

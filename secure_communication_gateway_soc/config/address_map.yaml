@@ -1,0 +1,140 @@
+# =============================================================================
+# address_map.yaml  –  Single authoritative address-map definition
+#
+# Secure Communication Gateway SoC
+# Spec ref: Section 4 (Memory and Peripheral Address Map)
+#           Section 5 (Master Access-Control Requirements)
+#
+# Format
+# ------
+# bus:
+#   data_width  : AXI data width in bits
+#   addr_width  : AXI address width in bits
+#   id_width    : AXI ID width in bits
+#   strb_width  : AXI write strobe width in bits (data_width / 8)
+#
+# masters:
+#   - index : 0-based master port index (S-side of interconnect)
+#     name  : short identifier used in generated code
+#     desc  : human-readable description
+#
+# slaves:
+#   - index      : 0-based slave port index (M-side of interconnect)
+#     name       : short identifier (used as prefix in generated `define names)
+#     desc       : human-readable description
+#     base       : base address (hex string, 32-bit)
+#     size       : address window size in bytes (decimal)
+#     addr_width : log2(size) – width of per-slave address bus
+#     access:    : per-master access list (must cover all masters)
+#       <master_name>: true | false
+#
+# The generate_address_map.py script validates that:
+#   - No two slaves overlap.
+#   - addr_width == ceil(log2(size)).
+#   - All masters are listed in every slave's access block.
+# =============================================================================
+
+bus:
+  data_width: 32
+  addr_width: 32
+  id_width:   8
+  strb_width: 4
+
+masters:
+  - index: 0
+    name:  cpu
+    desc:  "RISC-V CPU (VeeR EL2) via cpu_axi_adapter"
+  - index: 1
+    name:  dma
+    desc:  "DMA Controller (second AXI master)"
+
+slaves:
+  - index:      0
+    name:        IMEM
+    desc:        "Instruction Memory"
+    base:        "0x00000000"
+    size:        65536       # 64 KB
+    addr_width:  16
+    access:
+      cpu: true
+      dma: false             # Spec §5: DMA denied
+
+  - index:      1
+    name:        DMEM
+    desc:        "Data Memory"
+    base:        "0x00010000"
+    size:        65536       # 64 KB
+    addr_width:  16
+    access:
+      cpu: true
+      dma: true
+
+  - index:      2
+    name:        UART
+    desc:        "UART Controller"
+    base:        "0x10000000"
+    size:        256          # 256 B
+    addr_width:  8
+    access:
+      cpu: true
+      dma: true
+
+  - index:      3
+    name:        TIMER
+    desc:        "Timer / Counter"
+    base:        "0x10000100"
+    size:        256
+    addr_width:  8
+    access:
+      cpu: true
+      dma: false
+
+  - index:      4
+    name:        GPIO
+    desc:        "General-Purpose I/O (sensor DRDY input)"
+    base:        "0x10000200"
+    size:        256
+    addr_width:  8
+    access:
+      cpu: true
+      dma: false
+
+  - index:      5
+    name:        AES
+    desc:        "AES-128 CTR Encryption Engine"
+    base:        "0x10000300"
+    size:        256
+    addr_width:  8
+    access:
+      cpu: true
+      dma: true
+
+  - index:      6
+    name:        DMA
+    desc:        "DMA Configuration Registers"
+    base:        "0x10000400"
+    size:        256
+    addr_width:  8
+    access:
+      cpu: true
+      dma: false             # Spec §5 & §9 req 7: DMA shall NOT access its own cfg regs
+
+  - index:      7
+    name:        SPI
+    desc:        "SPI Controller"
+    base:        "0x10000500"
+    size:        256
+    addr_width:  8
+    access:
+      cpu: true
+      dma: true
+
+  - index:      8
+    name:        WDT
+    desc:        "Watchdog Timer"
+    base:        "0x10000600"
+    size:        256
+    addr_width:  8
+    access:
+      cpu: true
+      dma: false
