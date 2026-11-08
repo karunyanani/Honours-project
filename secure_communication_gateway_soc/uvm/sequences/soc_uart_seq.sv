@@ -54,3 +54,4 @@ class soc_uart_seq extends soc_base_seq;
 endclass : soc_uart_seq
 
 `endif // SOC_UART_SEQ_SV
+

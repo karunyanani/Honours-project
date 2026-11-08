@@ -51,3 +51,4 @@ class soc_spi_seq extends soc_base_seq;
 endclass : soc_spi_seq
 
 `endif // SOC_SPI_SEQ_SV
+

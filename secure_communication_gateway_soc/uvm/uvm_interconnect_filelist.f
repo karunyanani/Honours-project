@@ -18,3 +18,4 @@ uvm/if/clk_rst_if.sv
 uvm/agents/axi_agent/axi_assertions.sv
 uvm/tb/soc_uvm_pkg.sv
 uvm/tb/tb_interconnect_uvm.sv
+

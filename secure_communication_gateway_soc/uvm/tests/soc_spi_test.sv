@@ -28,3 +28,4 @@ class soc_spi_test extends soc_base_test;
 endclass : soc_spi_test
 
 `endif // SOC_SPI_TEST_SV
+

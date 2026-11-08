@@ -28,3 +28,4 @@ class soc_uart_test extends soc_base_test;
 endclass : soc_uart_test
 
 `endif // SOC_UART_TEST_SV
+
