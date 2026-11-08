@@ -1,11 +1,14 @@
 // =============================================================================
-// aes.v  –  AES-128 Encryption Engine  (AXI4-Lite slave)
+// aes.v  –  Dual-Mode AES-128 Encryption Engine (AXI4-Lite slave)
 //
 // Spec refs:
 //   - Section 4  : M5, base 0x10000300, 256 B
 //   - Section 5  : CPU and DMA accessible
-//   - Section 6  : AES-128 ECB encryption; 128-bit key, 128-bit block
-//   - Section 11 : DMA loads plaintext then polls DONE; CPU writes key once
+//   - Section 6  : Dual-Mode AES-128 encryption:
+//                    * NIST SP 800-38A Counter (CTR) mode (stream encryption)
+//                    * NIST FIPS-197 Electronic Codebook (ECB) mode (block KAT)
+//                    * 128-bit key, 128-bit block, 128-bit IV/counter
+//   - Section 11 : DMA loads plaintext/reads ciphertext; CPU writes key
 //   - soc_defines.vh register map
 //
 // Register map (byte offsets from base address):
@@ -30,30 +33,27 @@
 //
 // Operation flow:
 //   1. CPU writes 128-bit key to AES_KEY0..3 and sets AES_CTRL[1]=KEY_VALID.
-//   2. (CTR mode) Optionally configure initial IV/Counter at AES_IV0..3.
+//   2. In CTR mode: Program initial 128-bit IV/Counter at AES_IV0..3.
 //   3. CPU or DMA writes 128-bit plaintext to AES_DATA_IN0..3.
-//   4. CPU or DMA writes AES_CTRL[0]=START, KEY_VALID=1, and CTR_MODE=1.
-//   5. Engine computes 10 AES-128 rounds over 10+ cycles.
-//      - In CTR mode: Keystream = AES(Counter); Ciphertext = Plaintext ^ Keystream;
-//                     Counter auto-increments for the next block.
-//      - In ECB mode: Ciphertext = AES(Plaintext).
+//   4. CPU or DMA triggers encryption:
+//        - For CTR mode: write AES_CTRL = {CTR_MODE=1, KEY_VALID=1, START=1} (0x07)
+//        - For ECB mode: write AES_CTRL = {CTR_MODE=0, KEY_VALID=1, START=1} (0x03)
+//   5. Engine computes 10 AES-128 rounds over 11 clock cycles:
+//        - In CTR mode: Keystream = AES(Counter); Ciphertext = Plaintext ^ Keystream;
+//                       Counter auto-increments (IV <= IV + 1) upon completion.
+//        - In ECB mode: Ciphertext = AES(Plaintext).
 //   6. AES_STATUS[0]=DONE asserted; ciphertext available in AES_DATA_OUT0..3.
-//   6. Reading AES_STATUS clears DONE (read-to-clear) OR writing
-//      START=1 again starts a new operation.
+//   7. Reading AES_STATUS clears DONE (read-to-clear) OR writing
+//      START=1 again starts a new encryption operation.
 //
-// Scoped watchdog reset (wdt_rst_i):
-//   - Clears BUSY/DONE and the processing pipeline.
-//   - Key registers are NOT cleared (retained for next operation).
+// Scoped watchdog reset (wdt_rst):
+//   - Clears BUSY/DONE and the processing pipeline registers.
+//   - Key registers and CTR mode configurations are NOT cleared (retained).
 //
 // AES-128 implementation:
 //   Self-contained, purely combinational S-box table with registered
-//   round pipeline.  10-round fully unrolled datapath is pipeline-staged
-//   per round to meet timing.  Each round takes 1 clock cycle; key schedule
-//   is computed in parallel using the same S-box.  Total latency: 11 cycles
-//   (1 input register + 10 rounds).
-//
-// Note: This is a behavioural/RTL model suitable for simulation and FPGA.
-//       It is NOT hardened against side-channel attacks.
+//   round pipeline. 10-round datapath is pipeline-staged per round to meet
+//   timing. Total latency: 11 cycles (1 input register + 10 rounds).
 // =============================================================================
 
 `resetall

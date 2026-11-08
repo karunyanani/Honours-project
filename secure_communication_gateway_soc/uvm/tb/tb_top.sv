@@ -101,8 +101,21 @@ module tb_top;
     );
 
     // =========================================================================
-    // AXI Master VIP Bridging to Interconnect Master Port S0
+    // AXI Master VIP Bridging & CPU Integration Mode Configuration
     // =========================================================================
+    // Mode selection:
+    //   axi_vip_master_en = 1: VIP drives stimulus (for VIP unit sequences, CPU held in reset)
+    //   axi_vip_master_en = 0: CPU Integration Mode (CPU adapter drives fabric, VIP passively monitors)
+    bit axi_vip_master_en = 1'b1;
+
+    initial begin
+        void'($value$plusargs("AXI_VIP_MASTER_EN=%d", axi_vip_master_en));
+        if (!axi_vip_master_en) begin
+            `uvm_info("TB_TOP", "CPU Integration Mode: CPU adapter drives interconnect Port S0 with zero bypass forces.", UVM_LOW)
+        end
+    end
+
+    // Slave responses from interconnect back to VIP / CPU adapter
     assign axi_bus.awready = u_dut.u_interconnect.s_axi_awready[0];
     assign axi_bus.wready  = u_dut.u_interconnect.s_axi_wready[0];
     assign axi_bus.bid     = u_dut.u_interconnect.s_axi_bid[0*8 +: 8];
@@ -115,39 +128,103 @@ module tb_top;
     assign axi_bus.rlast   = u_dut.u_interconnect.s_axi_rlast[0];
     assign axi_bus.rvalid  = u_dut.u_interconnect.s_axi_rvalid[0];
 
-    // Hierarchical drive when AXI VIP Master sequence is active
-    always @(*) begin
-        if (axi_bus.awvalid) begin
-            force u_dut.u_interconnect.s_axi_awid[0*8 +: 8]     = axi_bus.awid;
-            force u_dut.u_interconnect.s_axi_awaddr[0*32 +: 32] = axi_bus.awaddr;
-            force u_dut.u_interconnect.s_axi_awlen[0*8 +: 8]    = axi_bus.awlen;
-            force u_dut.u_interconnect.s_axi_awsize[0*3 +: 3]   = axi_bus.awsize;
-            force u_dut.u_interconnect.s_axi_awburst[0*2 +: 2]  = axi_bus.awburst;
-            force u_dut.u_interconnect.s_axi_awvalid[0]         = axi_bus.awvalid;
-        end else if (!u_dut.u_cpu.m_axi_awvalid) begin
-            release u_dut.u_interconnect.s_axi_awvalid[0];
-        end
+    // In CPU integration mode, expose CPU adapter outputs to axi_bus for passive VIP monitoring
+    assign axi_bus.awid    = (!axi_vip_master_en) ? u_dut.u_cpu.m_axi_awid    : 8'bz;
+    assign axi_bus.awaddr  = (!axi_vip_master_en) ? u_dut.u_cpu.m_axi_awaddr  : 32'bz;
+    assign axi_bus.awlen   = (!axi_vip_master_en) ? u_dut.u_cpu.m_axi_awlen   : 8'bz;
+    assign axi_bus.awsize  = (!axi_vip_master_en) ? u_dut.u_cpu.m_axi_awsize  : 3'bz;
+    assign axi_bus.awburst = (!axi_vip_master_en) ? u_dut.u_cpu.m_axi_awburst : 2'bz;
+    assign axi_bus.awvalid = (!axi_vip_master_en) ? u_dut.u_cpu.m_axi_awvalid : 1'bz;
 
-        if (axi_bus.wvalid) begin
-            force u_dut.u_interconnect.s_axi_wdata[0*32 +: 32]  = axi_bus.wdata;
-            force u_dut.u_interconnect.s_axi_wstrb[0*4 +: 4]    = axi_bus.wstrb;
-            force u_dut.u_interconnect.s_axi_wlast[0]           = axi_bus.wlast;
-            force u_dut.u_interconnect.s_axi_wvalid[0]          = axi_bus.wvalid;
-            force u_dut.u_interconnect.s_axi_bready[0]          = axi_bus.bready;
-        end else if (!u_dut.u_cpu.m_axi_wvalid) begin
+    assign axi_bus.wdata   = (!axi_vip_master_en) ? u_dut.u_cpu.m_axi_wdata   : 32'bz;
+    assign axi_bus.wstrb   = (!axi_vip_master_en) ? u_dut.u_cpu.m_axi_wstrb   : 4'bz;
+    assign axi_bus.wlast   = (!axi_vip_master_en) ? u_dut.u_cpu.m_axi_wlast   : 1'bz;
+    assign axi_bus.wvalid  = (!axi_vip_master_en) ? u_dut.u_cpu.m_axi_wvalid  : 1'bz;
+    assign axi_bus.bready  = (!axi_vip_master_en) ? u_dut.u_cpu.m_axi_bready  : 1'bz;
+
+    assign axi_bus.arid    = (!axi_vip_master_en) ? u_dut.u_cpu.m_axi_arid    : 8'bz;
+    assign axi_bus.araddr  = (!axi_vip_master_en) ? u_dut.u_cpu.m_axi_araddr  : 32'bz;
+    assign axi_bus.arlen   = (!axi_vip_master_en) ? u_dut.u_cpu.m_axi_arlen   : 8'bz;
+    assign axi_bus.arsize  = (!axi_vip_master_en) ? u_dut.u_cpu.m_axi_arsize  : 3'bz;
+    assign axi_bus.arburst = (!axi_vip_master_en) ? u_dut.u_cpu.m_axi_arburst : 2'bz;
+    assign axi_bus.arvalid = (!axi_vip_master_en) ? u_dut.u_cpu.m_axi_arvalid : 1'bz;
+    assign axi_bus.rready  = (!axi_vip_master_en) ? u_dut.u_cpu.m_axi_rready  : 1'bz;
+
+    // Drive interconnect Port S0 only when VIP Master Injection is explicitly enabled
+    always @(*) begin
+        if (axi_vip_master_en) begin
+            // Hold CPU in reset so it does not collide with VIP injection
+            force u_dut.u_cpu.rst = 1'b1;
+
+            if (axi_bus.awvalid) begin
+                force u_dut.u_interconnect.s_axi_awid[0*8 +: 8]     = axi_bus.awid;
+                force u_dut.u_interconnect.s_axi_awaddr[0*32 +: 32] = axi_bus.awaddr;
+                force u_dut.u_interconnect.s_axi_awlen[0*8 +: 8]    = axi_bus.awlen;
+                force u_dut.u_interconnect.s_axi_awsize[0*3 +: 3]   = axi_bus.awsize;
+                force u_dut.u_interconnect.s_axi_awburst[0*2 +: 2]  = axi_bus.awburst;
+                force u_dut.u_interconnect.s_axi_awvalid[0]         = axi_bus.awvalid;
+            end else begin
+                release u_dut.u_interconnect.s_axi_awid[0*8 +: 8];
+                release u_dut.u_interconnect.s_axi_awaddr[0*32 +: 32];
+                release u_dut.u_interconnect.s_axi_awlen[0*8 +: 8];
+                release u_dut.u_interconnect.s_axi_awsize[0*3 +: 3];
+                release u_dut.u_interconnect.s_axi_awburst[0*2 +: 2];
+                release u_dut.u_interconnect.s_axi_awvalid[0];
+            end
+
+            if (axi_bus.wvalid) begin
+                force u_dut.u_interconnect.s_axi_wdata[0*32 +: 32]  = axi_bus.wdata;
+                force u_dut.u_interconnect.s_axi_wstrb[0*4 +: 4]    = axi_bus.wstrb;
+                force u_dut.u_interconnect.s_axi_wlast[0]           = axi_bus.wlast;
+                force u_dut.u_interconnect.s_axi_wvalid[0]          = axi_bus.wvalid;
+                force u_dut.u_interconnect.s_axi_bready[0]          = axi_bus.bready;
+            end else begin
+                release u_dut.u_interconnect.s_axi_wdata[0*32 +: 32];
+                release u_dut.u_interconnect.s_axi_wstrb[0*4 +: 4];
+                release u_dut.u_interconnect.s_axi_wlast[0];
+                release u_dut.u_interconnect.s_axi_wvalid[0];
+                release u_dut.u_interconnect.s_axi_bready[0];
+            end
+
+            if (axi_bus.arvalid) begin
+                force u_dut.u_interconnect.s_axi_arid[0*8 +: 8]     = axi_bus.arid;
+                force u_dut.u_interconnect.s_axi_araddr[0*32 +: 32] = axi_bus.araddr;
+                force u_dut.u_interconnect.s_axi_arlen[0*8 +: 8]    = axi_bus.arlen;
+                force u_dut.u_interconnect.s_axi_arsize[0*3 +: 3]   = axi_bus.arsize;
+                force u_dut.u_interconnect.s_axi_arburst[0*2 +: 2]  = axi_bus.arburst;
+                force u_dut.u_interconnect.s_axi_arvalid[0]         = axi_bus.arvalid;
+                force u_dut.u_interconnect.s_axi_rready[0]          = axi_bus.rready;
+            end else begin
+                release u_dut.u_interconnect.s_axi_arid[0*8 +: 8];
+                release u_dut.u_interconnect.s_axi_araddr[0*32 +: 32];
+                release u_dut.u_interconnect.s_axi_arlen[0*8 +: 8];
+                release u_dut.u_interconnect.s_axi_arsize[0*3 +: 3];
+                release u_dut.u_interconnect.s_axi_arburst[0*2 +: 2];
+                release u_dut.u_interconnect.s_axi_arvalid[0];
+                release u_dut.u_interconnect.s_axi_rready[0];
+            end
+        end else begin
+            // In CPU Integration Mode, release all forces unconditionally.
+            // The CPU and CPU adapter natively drive interconnect Port S0!
+            release u_dut.u_cpu.rst;
+            release u_dut.u_interconnect.s_axi_awid[0*8 +: 8];
+            release u_dut.u_interconnect.s_axi_awaddr[0*32 +: 32];
+            release u_dut.u_interconnect.s_axi_awlen[0*8 +: 8];
+            release u_dut.u_interconnect.s_axi_awsize[0*3 +: 3];
+            release u_dut.u_interconnect.s_axi_awburst[0*2 +: 2];
+            release u_dut.u_interconnect.s_axi_awvalid[0];
+
+            release u_dut.u_interconnect.s_axi_wdata[0*32 +: 32];
+            release u_dut.u_interconnect.s_axi_wstrb[0*4 +: 4];
+            release u_dut.u_interconnect.s_axi_wlast[0];
             release u_dut.u_interconnect.s_axi_wvalid[0];
             release u_dut.u_interconnect.s_axi_bready[0];
-        end
 
-        if (axi_bus.arvalid) begin
-            force u_dut.u_interconnect.s_axi_arid[0*8 +: 8]     = axi_bus.arid;
-            force u_dut.u_interconnect.s_axi_araddr[0*32 +: 32] = axi_bus.araddr;
-            force u_dut.u_interconnect.s_axi_arlen[0*8 +: 8]    = axi_bus.arlen;
-            force u_dut.u_interconnect.s_axi_arsize[0*3 +: 3]   = axi_bus.arsize;
-            force u_dut.u_interconnect.s_axi_arburst[0*2 +: 2]  = axi_bus.arburst;
-            force u_dut.u_interconnect.s_axi_arvalid[0]         = axi_bus.arvalid;
-            force u_dut.u_interconnect.s_axi_rready[0]          = axi_bus.rready;
-        end else if (!u_dut.u_cpu.m_axi_arvalid) begin
+            release u_dut.u_interconnect.s_axi_arid[0*8 +: 8];
+            release u_dut.u_interconnect.s_axi_araddr[0*32 +: 32];
+            release u_dut.u_interconnect.s_axi_arlen[0*8 +: 8];
+            release u_dut.u_interconnect.s_axi_arsize[0*3 +: 3];
+            release u_dut.u_interconnect.s_axi_arburst[0*2 +: 2];
             release u_dut.u_interconnect.s_axi_arvalid[0];
             release u_dut.u_interconnect.s_axi_rready[0];
         end

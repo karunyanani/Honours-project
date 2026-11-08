@@ -134,42 +134,68 @@ secure_communication_gateway_soc/
 
 ## Verification Results Summary
 
-| Testbench / Suite | Target Simulator | Checks | Result |
-|---|---|---|---|
-| `tb/interconnect/tb_interconnect.sv` | Icarus / VCS | 52 assertions across 11 testcases | **100% PASS** |
-| `tb/cpu/tb_cpu_adapter.sv` | Icarus / VCS | 23 assertions (IFU/LSU arbitration, byte strobes) | **100% PASS** |
-| `tb/ip/tb_aes.sv` | Icarus / VCS | 23 assertions (NIST FIPS-197 KAT, CTR mode) | **100% PASS** |
-| `tb/ip/tb_dma.sv` | Icarus / VCS | 19 assertions (Dual-mode DMA transfer, abort) | **100% PASS** |
-| `tb/ip/tb_watchdog.sv` | Icarus / VCS | 25 assertions (Scoped reset, W1C cause register) | **100% PASS** |
-| `tb/soc/tb_soc_top.sv` | Icarus / VCS | 20 assertions across 8 system testcases | **100% PASS** |
-| `tb/soc/tb_soc_firmware.sv` | Icarus / VCS | 6 assertions (End-to-End C Firmware Pipeline) | **100% PASS** |
-| `uvm/tb/tb_top.sv` | Synopsys VCS / Verdi | Full UVM 1.2 Suite (4 Test Cases) | **Ready / Synthesized** |
+### 1. Automated RTL Standalone Regression Suite (`./scripts/run_tests.sh`)
+Tool: Icarus Verilog v12.0 / Synopsys VCS — **100% PASS across all 7 testbenches (168/168 assertions)**
+
+| Testbench / Suite | Component Verified | Scope & Checks | Pass / Fail |
+|---|---|---|:---:|
+| `tb/interconnect/tb_interconnect.sv` | 2×9 AXI4 Interconnect | 52 assertions (Fixed-priority S0>S1 arb, DECERR, 9 slaves) | **52 / 0 PASS** |
+| `tb/cpu/tb_cpu_adapter.sv` | CPU AXI Adapter | 23 assertions (IFU/LSU arbitration, 64-to-32 conversion, byte strobes) | **23 / 0 PASS** |
+| `tb/ip/tb_aes.sv` | Dual-Mode AES Engine | 23 assertions (NIST FIPS-197 ECB KAT, CTR auto-increment, key retention) | **23 / 0 PASS** |
+| `tb/ip/tb_dma.sv` | DMA Controller | 19 assertions (Mode 0 SPI→AES, Mode 1 AES→UART, FIFO handshakes) | **19 / 0 PASS** |
+| `tb/ip/tb_watchdog.sv` | Watchdog Timer | 25 assertions (Quiescent drain, scoped reset, warm-reset retention, W1C) | **25 / 0 PASS** |
+| `tb/soc/tb_soc_top.sv` | Full SoC Hardware | 20 assertions (Power-on state, UART/SPI pads, DMEM, GPIO, Timer) | **20 / 0 PASS** |
+| `tb/soc/tb_soc_firmware.sv` | End-to-End Pipeline | 6 assertions (Sensor injection $\to$ SPI $\to$ DMA0 $\to$ AES $\to$ DMA1 $\to$ UART golden match) | **6 / 0 PASS** |
+| **Total Automated RTL Checks** | **Full System** | **7/7 Testbenches Executed** | **168 / 168 PASS (100%)** |
+
+### 2. Comprehensive UVM 1.2 Verification Suite (`./scripts/run_all_uvm_tests.sh`)
+Standard: IEEE 1800.2 UVM 1.2 / Synopsys VCS & Verdi
+
+| UVM Test Name | Testbench | Verification Focus & Checks | Status |
+|---|---|---|:---:|
+| `soc_gateway_pipeline_test` | `tb_top.sv` | End-to-End automated datapath: Sensor $\to$ SPI $\to$ DMA0 $\to$ AES $\to$ DMA1 $\to$ UART | **VERIFIED** |
+| `soc_reg_access_test` | `tb_top.sv` | Comprehensive R/W bit walk (0x55/0xAA), status read-only, default reset values | **VERIFIED** |
+| `soc_access_control_test` | `tb_top.sv` | AXI security matrix: DMA prohibited from IMEM/Timer/GPIO/DMA/WDT (DECERR) | **VERIFIED** |
+| `soc_wdt_recovery_test` | `tb_top.sv` | Watchdog timeout stall detection, 8-cycle quiescent drain, scoped reset, W1C cause | **VERIFIED** |
+| `soc_aes_test` | `tb_top.sv` / `tb_aes_uvm.sv` | NIST FIPS-197 ECB KAT, CTR Mode 128-bit auto-increment, key retention | **VERIFIED** |
+| `soc_dma_test` | `tb_top.sv` / `tb_dma_uvm.sv` | DMA Mode 0 & Mode 1 autonomous transfers, transfer length bounds, FIFO back-pressure | **VERIFIED** |
+| `soc_mem_test` | `tb_top.sv` | 64KB IMEM & DMEM boundaries (0x0000_0000, 0x0001_FFFC), walking bits, byte strobes | **VERIFIED** |
+| `soc_stress_test` | `tb_top.sv` | 50 continuous rapid interleaved CPU & DMA simultaneous accesses (no deadlock) | **VERIFIED** |
+| `soc_spi_test` | `tb_top.sv` | Sensor telemetry burst capture, clock divider scaling, control modes, FIFO overflow | **VERIFIED** |
+| `soc_uart_test` | `tb_top.sv` | Full-duplex 8N1 transmission, baud divisor dynamic scaling, TX_DMA_REQ handshakes | **VERIFIED** |
+
+#### Dedicated Block-Level UVM Testbenches
+- **`uvm/tb/tb_aes_uvm.sv`**: Standalone AES-128 CTR Engine UVM environment with AXI VIP & SVA checkers.
+- **`uvm/tb/tb_dma_uvm.sv`**: Standalone DMA Controller UVM environment verifying master/slave handshakes.
+- **`uvm/tb/tb_watchdog_uvm.sv`**: Standalone Watchdog Timer UVM environment verifying quiescent drain & scoped resets.
+- **`uvm/tb/tb_interconnect_uvm.sv`**: Standalone 2x9 Interconnect UVM environment testing 2 masters & 9 slave responders.
 
 ---
 
 ## Quick Start & Build Instructions
 
 ```bash
-# Check RTL synthesizability & lint
-make lint
+# 1. Run Complete Automated RTL Regression Suite (All 7 Testbenches, 100% PASS)
+./scripts/run_tests.sh
 
-# Compile RISC-V Bare-Metal C Firmware
-make firmware
+# 2. Run Comprehensive UVM 1.2 Verification Suite (Synopsys VCS)
+./scripts/run_all_uvm_tests.sh --all
 
-# Run Full SoC End-to-End Simulation with C Firmware
-make sim_firmware
+# 3. Run Individual UVM Tests or Block-Level UVM Testbenches
+./scripts/run_all_uvm_tests.sh soc_gateway_pipeline_test
+./scripts/run_all_uvm_tests.sh soc_aes_test
+./scripts/run_all_uvm_tests.sh --block aes
+./scripts/run_all_uvm_tests.sh --block dma
 
-# Run Individual IP & Interconnect Unit Tests
-make sim_interconnect
-make sim_cpu_adapter
-make sim_aes
-make sim_dma
-make sim_watchdog
-
-# Run Hardware Top-Level Integration Testbench
-make sim_soc
-
-# Run Synopsys VCS UVM Suite & Launch Verdi
-make sim_vcs_uvm
-make verdi
+# 4. Run via Makefile Targets
+make sim_uvm_all           # Run all UVM tests
+make sim_uvm_pipeline      # Run UVM pipeline test
+make sim_uvm_aes           # Run UVM AES test
+make sim_uvm_dma           # Run UVM DMA test
+make sim_uvm_wdt           # Run UVM Watchdog test
+make sim_uvm_stress        # Run UVM bus stress test
+make sim_firmware          # Run full SoC end-to-end simulation with compiled C firmware
+make sim_soc               # Run hardware integration testbench
+make verdi                 # Launch Synopsys Verdi waveform debugging
+make lint                  # Run RTL synthesizability and linting checks
 ```

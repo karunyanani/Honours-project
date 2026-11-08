@@ -5,33 +5,36 @@
 //   - Section 4  : M8, base 0x10000600, 256 B
 //   - Section 5  : CPU only (DMA denied in interconnect)
 //   - Section 12 : Scoped reset (DMA+AES+SPI only); CPU/memories/key/DMA cfg
-//                  retain; interconnect NOT reset; AXI drain before reset.
+//                  retained; interconnect NOT reset.
+//                  Quiescent AXI drain delay (DRAIN_CYCLES) before reset.
 //
 // Register map (byte offsets):
 //   0x00  WDT_FEED         W   : write 0xDEADFEED to reload and keep alive
 //   0x04  WDT_TIMEOUT      RW  : timeout in clock cycles (retained across rst)
-//   0x08  WDT_CTRL         RW  : [0]=EN  (retained across rst)
-//   0x0C  WDT_RESET_CAUSE  R/W1C : [0]=WDT_FIRED (set on timeout, W1C clear)
+//   0x08  WDT_CTRL         RW  : [0]=EN  (cleared to 0 on rst and on timeout)
+//   0x0C  WDT_RESET_CAUSE  R/W1C : [0]=WDT_FIRED (set on timeout, retained across rst, W1C clear)
 //
 // Scoped reset outputs (active-high, synchronous, single-cycle pulse):
 //   wdt_reset_dma    – resets DMA controller datapath
 //   wdt_reset_aes    – resets AES processing registers (NOT key)
 //   wdt_reset_spi    – resets SPI shift engine
 //
-// Protocol:
-//   1. CPU writes WDT_TIMEOUT then sets WDT_CTRL[0]=1 to start.
-//   2. Every successful processing cycle the CPU writes 0xDEAD_FEED to
-//      WDT_FEED to reload the counter.
-//   3. If the counter reaches zero the watchdog:
-//        a) De-asserts WDT_CTRL[0] (stops itself) to prevent re-firing.
-//        b) Asserts wdt_reset_dma/aes/spi for one cycle.
-//        c) Sets WDT_RESET_CAUSE[0]=1.
-//   4. The firmware reads WDT_RESET_CAUSE to detect recovery.
+// Protocol & Drain Sequence:
+//   1. CPU writes WDT_TIMEOUT then sets WDT_CTRL[0]=1 to start countdown.
+//   2. Periodic feeding: CPU writes 0xDEAD_FEED to WDT_FEED to reload count_r.
+//   3. Upon countdown reaching zero (stall detected):
+//        a) WDT enters WDT_DRAIN state for DRAIN_CYCLES (8 cycles) to allow
+//           any active in-flight single-beat AXI transactions to settle naturally.
+//        b) WDT transitions to WDT_FIRE and pulses wdt_reset_dma/aes/spi for 1 cycle.
+//        c) De-asserts WDT_CTRL[0] (self-disables) to prevent re-firing loops.
+//        d) Sets WDT_RESET_CAUSE[0]=1 (retained across warm boot).
+//   4. Post-recovery: Firmware reads WDT_RESET_CAUSE to detect fault, writes 1
+//      to clear (W1C), and reconfigures the datapath.
 //
-// All registers (TIMEOUT, CTRL, RESET_CAUSE) are held in a retention domain
-// that is NOT connected to the scoped reset outputs — they survive a WDT
-// event and also survive any system-level reset (registers use initial blocks
-// for simulation; in silicon they would be in an always-on power domain).
+// Retention architecture:
+//   - TIMEOUT and RESET_CAUSE survive warm system-level reset (rst) and scoped reset.
+//   - W1C write to offset 0x0C clears RESET_CAUSE.
+//   - In silicon, retained registers reside in an always-on/warm-boot retention domain.
 // =============================================================================
 
 `resetall
