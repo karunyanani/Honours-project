@@ -133,7 +133,7 @@ module watchdog #(
             wdt_reset_dma <= 1'b0;
             wdt_reset_aes <= 1'b0;
             wdt_reset_spi <= 1'b0;
-            reset_cause_r <= 1'b0;
+            // reset_cause_r is retained across system reset (cleared only via W1C)
             en_r          <= 1'b0;
         end else begin
             // Default: de-assert scoped resets
@@ -209,7 +209,7 @@ module watchdog #(
             s_axi_bresp   <= 2'b00;
             aw_pend       <= 1'b0;
             aw_addr_lat   <= {ADDR_WIDTH{1'b0}};
-            timeout_r     <= DEFAULT_TIMEOUT;
+            // timeout_r is retained across system reset
         end else begin
             if (aw_fire && w_fire) begin
                 if (cur_wr_off == 8'h04) begin
@@ -246,14 +246,6 @@ module watchdog #(
                 s_axi_awready <= 1'b1;
                 s_axi_wready  <= 1'b1;
             end
-        end
-    end
-
-    // Handle state return when reset_cause is cleared
-    always @(posedge clk) begin
-        if (!rst) begin
-            if (wdt_state == WDT_WAIT && !reset_cause_r)
-                wdt_state <= WDT_RUN;
         end
     end
 

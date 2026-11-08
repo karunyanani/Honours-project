@@ -198,6 +198,8 @@ module dma #(
     reg [31:0]  aes_word_buf;   // holds one 32-bit read from AES_DATA_OUT
     reg [1:0]   byte_of_word;   // which byte of current word to transmit next
 
+    wire [7:0] transfer_len = (len_r == 32'd0) ? 8'd16 : len_r[7:0];
+    wire [4:0] total_words  = (transfer_len + 8'd3) >> 2;
     wire do_rst = rst | wdt_rst;
 
     always @(posedge clk) begin
@@ -234,8 +236,8 @@ module dma #(
             // Clear busy when datapath reset to IDLE; retain config regs on wdt_rst
             busy_r <= 1'b0;
             if (rst) begin
-                done_r  <= 1'b0;
-                err_r   <= 1'b0;
+                done_r <= 1'b0;
+                err_r  <= 1'b0;
             end
         end else begin
 
@@ -286,8 +288,8 @@ module dma #(
                         // Pack into data_buf MSB-first
                         data_buf <= {data_buf[119:0], m_axi_rdata[7:0]};
                         byte_idx <= byte_idx + 1'b1;
-                        if (byte_idx == 8'd15) begin
-                            // 16 bytes read – write to AES
+                        if (byte_idx == (transfer_len - 1'b1)) begin
+                            // Full block read – write to AES
                             byte_idx      <= 8'd0;
                             word_cnt      <= 5'd0;
                             m_axi_awaddr  <= AES_DATA_IN0_ADDR;
@@ -335,8 +337,8 @@ module dma #(
                         if (m_axi_bresp != 2'b00)
                             err_r <= 1'b1;
                         word_cnt <= word_cnt + 1'b1;
-                        if (word_cnt == 5'd3) begin
-                            // All 4 words written – trigger AES
+                        if (word_cnt == (total_words - 1'b1)) begin
+                            // All words written – trigger AES
                             word_cnt      <= 5'd0;
                             m_axi_awaddr  <= AES_CTRL_ADDR;
                             m_axi_awvalid <= 1'b1;
@@ -435,21 +437,22 @@ module dma #(
                         m_axi_bready <= 1'b0;
                         if (m_axi_bresp != 2'b00)
                             err_r <= 1'b1;
+                        byte_idx     <= byte_idx + 1'b1;
                         byte_of_word <= byte_of_word + 1'b1;
-                        if (byte_of_word == 2'd3) begin
+                        if (byte_idx == (transfer_len - 1'b1)) begin
+                            // All bytes sent
+                            done_r   <= 1'b1;
+                            busy_r   <= 1'b0;
+                            byte_idx <= 8'd0;
+                            word_cnt <= 5'd0;
+                            state    <= S_IDLE;
+                        end else if (byte_of_word == 2'd3) begin
                             // Finished 4 bytes of this word
-                            word_cnt <= word_cnt + 1'b1;
-                            if (word_cnt == 5'd3) begin
-                                // All 16 bytes sent
-                                done_r <= 1'b1;
-                                busy_r <= 1'b0;
-                                state  <= S_IDLE;
-                            end else begin
-                                m_axi_araddr  <= AES_DATA_OUT0_ADDR + {word_cnt[1:0] + 2'd1, 2'b00};
-                                m_axi_arvalid <= 1'b1;
-                                byte_of_word  <= 2'd0;
-                                state         <= S_AESOUT_AR;
-                            end
+                            word_cnt      <= word_cnt + 1'b1;
+                            m_axi_araddr  <= AES_DATA_OUT0_ADDR + {word_cnt[1:0] + 2'd1, 2'b00};
+                            m_axi_arvalid <= 1'b1;
+                            byte_of_word  <= 2'd0;
+                            state         <= S_AESOUT_AR;
                         end else begin
                             // More bytes from same word
                             state <= S_UART_WAIT;

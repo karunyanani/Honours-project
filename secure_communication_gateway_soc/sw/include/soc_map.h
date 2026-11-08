@@ -86,21 +86,37 @@
 #define AES_KEY1            REG32(AES_BASE, 0x04u)
 #define AES_KEY2            REG32(AES_BASE, 0x08u)
 #define AES_KEY3            REG32(AES_BASE, 0x0Cu)
-#define AES_PT0             REG32(AES_BASE, 0x10u)
-#define AES_PT1             REG32(AES_BASE, 0x14u)
-#define AES_PT2             REG32(AES_BASE, 0x18u)
-#define AES_PT3             REG32(AES_BASE, 0x1Cu)
-#define AES_CT0             REG32(AES_BASE, 0x20u)
-#define AES_CT1             REG32(AES_BASE, 0x24u)
-#define AES_CT2             REG32(AES_BASE, 0x28u)
-#define AES_CT3             REG32(AES_BASE, 0x2Cu)
-#define AES_CTRL            REG32(AES_BASE, 0x30u)
-#define AES_STATUS          REG32(AES_BASE, 0x34u)
+#define AES_CTRL            REG32(AES_BASE, 0x10u)
+#define AES_STATUS          REG32(AES_BASE, 0x14u)
+#define AES_DATA_IN0        REG32(AES_BASE, 0x18u)
+#define AES_DATA_IN1        REG32(AES_BASE, 0x1Cu)
+#define AES_DATA_IN2        REG32(AES_BASE, 0x20u)
+#define AES_DATA_IN3        REG32(AES_BASE, 0x24u)
+#define AES_DATA_OUT0       REG32(AES_BASE, 0x28u)
+#define AES_DATA_OUT1       REG32(AES_BASE, 0x2Cu)
+#define AES_DATA_OUT2       REG32(AES_BASE, 0x30u)
+#define AES_DATA_OUT3       REG32(AES_BASE, 0x34u)
+#define AES_IV0             REG32(AES_BASE, 0x38u)
+#define AES_IV1             REG32(AES_BASE, 0x3Cu)
+#define AES_IV2             REG32(AES_BASE, 0x40u)
+#define AES_IV3             REG32(AES_BASE, 0x44u)
+
+/* Backward compatibility aliases */
+#define AES_PT0             AES_DATA_IN0
+#define AES_PT1             AES_DATA_IN1
+#define AES_PT2             AES_DATA_IN2
+#define AES_PT3             AES_DATA_IN3
+#define AES_CT0             AES_DATA_OUT0
+#define AES_CT1             AES_DATA_OUT1
+#define AES_CT2             AES_DATA_OUT2
+#define AES_CT3             AES_DATA_OUT3
 
 /* AES bit fields */
 #define AES_START_BIT       (1u << 0)
-#define AES_BUSY_BIT        (1u << 0)
-#define AES_DONE_BIT        (1u << 1)
+#define AES_KEY_VALID_BIT   (1u << 1)
+#define AES_CTR_MODE_BIT    (1u << 2)
+#define AES_DONE_BIT        (1u << 0)
+#define AES_BUSY_BIT        (1u << 1)
 
 /* DMA Registers */
 #define DMA_SRC_ADDR        REG32(DMA_BASE, 0x00u)
@@ -115,6 +131,8 @@
 #define DMA_BUSY_BIT        (1u << 0)
 #define DMA_DONE_BIT        (1u << 1)
 #define DMA_ERR_BIT         (1u << 2)
+#define DMA_MODE_SPI_AES    0u
+#define DMA_MODE_AES_UART   1u
 
 /* SPI Registers */
 #define SPI_DATA            REG32(SPI_BASE, 0x00u)

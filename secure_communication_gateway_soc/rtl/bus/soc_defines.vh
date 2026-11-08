@@ -122,6 +122,19 @@
 `define AES_DATA_OUT1   8'h2C
 `define AES_DATA_OUT2   8'h30
 `define AES_DATA_OUT3   8'h34
+`define AES_IV0         8'h38
+`define AES_IV1         8'h3C
+`define AES_IV2         8'h40
+`define AES_IV3         8'h44
+
+// AES Control bit fields
+`define AES_CTRL_START_BIT     0
+`define AES_CTRL_KEY_VALID_BIT 1
+`define AES_CTRL_CTR_MODE_BIT  2
+
+// AES Status bit fields
+`define AES_STATUS_DONE_BIT    0
+`define AES_STATUS_BUSY_BIT    1
 
 // DMA config registers
 `define DMA_SRC_ADDR    8'h00

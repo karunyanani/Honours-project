@@ -74,6 +74,10 @@ parameter logic [1:0] CONN_WDT = 2'b01;
 `define TB_AES_DATA_OUT1   8'h2C
 `define TB_AES_DATA_OUT2   8'h30
 `define TB_AES_DATA_OUT3   8'h34
+`define TB_AES_IV0         8'h38
+`define TB_AES_IV1         8'h3C
+`define TB_AES_IV2         8'h40
+`define TB_AES_IV3         8'h44
 
 // DMA
 `define TB_DMA_SRC_ADDR    8'h00

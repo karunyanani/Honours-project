@@ -13,7 +13,7 @@
 //   0x04  AES_KEY1      RW  : key word 1 (bits  95:64)
 //   0x08  AES_KEY2      RW  : key word 2 (bits  63:32)
 //   0x0C  AES_KEY3      RW  : key word 3 (bits  31:0)
-//   0x10  AES_CTRL      RW  : [0]=START  [1]=KEY_VALID
+//   0x10  AES_CTRL      RW  : [0]=START  [1]=KEY_VALID  [2]=CTR_MODE (1=CTR, 0=ECB)
 //   0x14  AES_STATUS    R   : [0]=DONE   [1]=BUSY
 //   0x18  AES_DATA_IN0  W   : plaintext word 0 (bits 127:96)
 //   0x1C  AES_DATA_IN1  W   : plaintext word 1 (bits  95:64)
@@ -23,13 +23,21 @@
 //   0x2C  AES_DATA_OUT1 R   : ciphertext word 1
 //   0x30  AES_DATA_OUT2 R   : ciphertext word 2
 //   0x34  AES_DATA_OUT3 R   : ciphertext word 3
+//   0x38  AES_IV0       RW  : CTR IV/Counter word 0 (bits 127:96)
+//   0x3C  AES_IV1       RW  : CTR IV/Counter word 1 (bits  95:64)
+//   0x40  AES_IV2       RW  : CTR IV/Counter word 2 (bits  63:32)
+//   0x44  AES_IV3       RW  : CTR IV/Counter word 3 (bits  31:0)
 //
 // Operation flow:
 //   1. CPU writes 128-bit key to AES_KEY0..3 and sets AES_CTRL[1]=KEY_VALID.
-//   2. CPU or DMA writes 128-bit plaintext to AES_DATA_IN0..3.
-//   3. CPU or DMA writes AES_CTRL[0]=START (and KEY_VALID=1).
-//   4. Engine computes 10 AES-128 rounds over 10+ cycles.
-//   5. AES_STATUS[0]=DONE asserted; ciphertext available in AES_DATA_OUT0..3.
+//   2. (CTR mode) Optionally configure initial IV/Counter at AES_IV0..3.
+//   3. CPU or DMA writes 128-bit plaintext to AES_DATA_IN0..3.
+//   4. CPU or DMA writes AES_CTRL[0]=START, KEY_VALID=1, and CTR_MODE=1.
+//   5. Engine computes 10 AES-128 rounds over 10+ cycles.
+//      - In CTR mode: Keystream = AES(Counter); Ciphertext = Plaintext ^ Keystream;
+//                     Counter auto-increments for the next block.
+//      - In ECB mode: Ciphertext = AES(Plaintext).
+//   6. AES_STATUS[0]=DONE asserted; ciphertext available in AES_DATA_OUT0..3.
 //   6. Reading AES_STATUS clears DONE (read-to-clear) OR writing
 //      START=1 again starts a new operation.
 //
@@ -334,11 +342,15 @@ module aes #(
     reg         key_valid_r;
 
     reg [127:0] plaintext_r;     // input data
+    reg [127:0] pt_lat;          // Plaintext latched when operation starts
     reg [127:0] ciphertext_r;    // output data
+    reg [127:0] iv_ctr_r;        // CTR mode 128-bit counter / IV (retained across wdt_rst)
+    reg         mode_ctr_r;      // 1 = CTR mode, 0 = ECB mode
 
     reg         start_r;         // latched START pulse
     reg         busy_r;
     reg         done_r;
+    reg         status_read_latched; // Track status read on AR phase for clean read-to-clear
 
     // =========================================================================
     // Pipeline: 11 stage registers (stage 0 = after AddRoundKey with rk0,
@@ -371,8 +383,10 @@ module aes #(
             done_r  <= 1'b0;
         end else begin
             // Stage 0: initial AddRoundKey
+            // In CTR mode, input to cipher is iv_ctr_r; in ECB mode, plaintext_r
             if (start_r && key_valid_r) begin
-                pipe[0]  <= plaintext_r ^ rk(rkeys, 0);
+                pipe[0]  <= (mode_ctr_r ? iv_ctr_r : plaintext_r) ^ rk(rkeys, 0);
+                pt_lat   <= plaintext_r;
                 pipe_v[0]<= 1'b1;
                 busy_r   <= 1'b1;
                 done_r   <= 1'b0;
@@ -403,7 +417,13 @@ module aes #(
 
             // Capture result
             if (pipe_v[10]) begin
-                ciphertext_r <= pipe[10];
+                // In CTR mode: Ciphertext = Plaintext ^ Keystream; auto-increment counter
+                if (mode_ctr_r) begin
+                    ciphertext_r <= pt_lat ^ pipe[10];
+                    iv_ctr_r     <= iv_ctr_r + 1'b1;
+                end else begin
+                    ciphertext_r <= pipe[10];
+                end
                 busy_r       <= 1'b0;
                 done_r       <= 1'b1;
             end
@@ -437,6 +457,8 @@ module aes #(
             key_r         <= 128'b0;
             key_valid_r   <= 1'b0;
             plaintext_r   <= 128'b0;
+            iv_ctr_r      <= 128'h0000_0000_0000_0000_0000_0000_0000_0001;
+            mode_ctr_r    <= 1'b0;
             start_r       <= 1'b0;
         end else if (wdt_rst) begin
             start_r       <= 1'b0;
@@ -474,6 +496,10 @@ module aes #(
                                if (cur_wstrb[0]) begin
                                    start_r     <= cur_wdata[0];
                                    key_valid_r <= cur_wdata[1];
+                                   if (cur_wdata[2])
+                                       mode_ctr_r <= 1'b1;
+                                   else if (!cur_wdata[0])
+                                       mode_ctr_r <= 1'b0;
                                end
                            end
                     8'h18: begin
@@ -499,6 +525,30 @@ module aes #(
                                if (cur_wstrb[2]) plaintext_r[ 23: 16] <= cur_wdata[23:16];
                                if (cur_wstrb[1]) plaintext_r[ 15:  8] <= cur_wdata[15: 8];
                                if (cur_wstrb[0]) plaintext_r[  7:  0] <= cur_wdata[ 7: 0];
+                           end
+                    8'h38: begin
+                               if (cur_wstrb[3]) iv_ctr_r[127:120] <= cur_wdata[31:24];
+                               if (cur_wstrb[2]) iv_ctr_r[119:112] <= cur_wdata[23:16];
+                               if (cur_wstrb[1]) iv_ctr_r[111:104] <= cur_wdata[15: 8];
+                               if (cur_wstrb[0]) iv_ctr_r[103: 96] <= cur_wdata[ 7: 0];
+                           end
+                    8'h3C: begin
+                               if (cur_wstrb[3]) iv_ctr_r[ 95: 88] <= cur_wdata[31:24];
+                               if (cur_wstrb[2]) iv_ctr_r[ 87: 80] <= cur_wdata[23:16];
+                               if (cur_wstrb[1]) iv_ctr_r[ 79: 72] <= cur_wdata[15: 8];
+                               if (cur_wstrb[0]) iv_ctr_r[ 71: 64] <= cur_wdata[ 7: 0];
+                           end
+                    8'h40: begin
+                               if (cur_wstrb[3]) iv_ctr_r[ 63: 56] <= cur_wdata[31:24];
+                               if (cur_wstrb[2]) iv_ctr_r[ 55: 48] <= cur_wdata[23:16];
+                               if (cur_wstrb[1]) iv_ctr_r[ 47: 40] <= cur_wdata[15: 8];
+                               if (cur_wstrb[0]) iv_ctr_r[ 39: 32] <= cur_wdata[ 7: 0];
+                           end
+                    8'h44: begin
+                               if (cur_wstrb[3]) iv_ctr_r[ 31: 24] <= cur_wdata[31:24];
+                               if (cur_wstrb[2]) iv_ctr_r[ 23: 16] <= cur_wdata[23:16];
+                               if (cur_wstrb[1]) iv_ctr_r[ 15:  8] <= cur_wdata[15: 8];
+                               if (cur_wstrb[0]) iv_ctr_r[  7:  0] <= cur_wdata[ 7: 0];
                            end
                     default: ;
                 endcase
@@ -542,6 +592,10 @@ module aes #(
                                if (cur_wstrb[0]) begin
                                    start_r     <= cur_wdata[0];
                                    key_valid_r <= cur_wdata[1];
+                                   if (cur_wdata[2])
+                                       mode_ctr_r <= 1'b1;
+                                   else if (!cur_wdata[0])
+                                       mode_ctr_r <= 1'b0;
                                end
                            end
                     8'h18: begin
@@ -568,6 +622,30 @@ module aes #(
                                if (cur_wstrb[1]) plaintext_r[ 15:  8] <= cur_wdata[15: 8];
                                if (cur_wstrb[0]) plaintext_r[  7:  0] <= cur_wdata[ 7: 0];
                            end
+                    8'h38: begin
+                               if (cur_wstrb[3]) iv_ctr_r[127:120] <= cur_wdata[31:24];
+                               if (cur_wstrb[2]) iv_ctr_r[119:112] <= cur_wdata[23:16];
+                               if (cur_wstrb[1]) iv_ctr_r[111:104] <= cur_wdata[15: 8];
+                               if (cur_wstrb[0]) iv_ctr_r[103: 96] <= cur_wdata[ 7: 0];
+                           end
+                    8'h3C: begin
+                               if (cur_wstrb[3]) iv_ctr_r[ 95: 88] <= cur_wdata[31:24];
+                               if (cur_wstrb[2]) iv_ctr_r[ 87: 80] <= cur_wdata[23:16];
+                               if (cur_wstrb[1]) iv_ctr_r[ 79: 72] <= cur_wdata[15: 8];
+                               if (cur_wstrb[0]) iv_ctr_r[ 71: 64] <= cur_wdata[ 7: 0];
+                           end
+                    8'h40: begin
+                               if (cur_wstrb[3]) iv_ctr_r[ 63: 56] <= cur_wdata[31:24];
+                               if (cur_wstrb[2]) iv_ctr_r[ 55: 48] <= cur_wdata[23:16];
+                               if (cur_wstrb[1]) iv_ctr_r[ 47: 40] <= cur_wdata[15: 8];
+                               if (cur_wstrb[0]) iv_ctr_r[ 39: 32] <= cur_wdata[ 7: 0];
+                           end
+                    8'h44: begin
+                               if (cur_wstrb[3]) iv_ctr_r[ 31: 24] <= cur_wdata[31:24];
+                               if (cur_wstrb[2]) iv_ctr_r[ 23: 16] <= cur_wdata[23:16];
+                               if (cur_wstrb[1]) iv_ctr_r[ 15:  8] <= cur_wdata[15: 8];
+                               if (cur_wstrb[0]) iv_ctr_r[  7:  0] <= cur_wdata[ 7: 0];
+                           end
                     default: ;
                 endcase
 
@@ -593,13 +671,17 @@ module aes #(
 
     always @(posedge clk) begin
         if (rst) begin
-            s_axi_arready <= 1'b1;
-            s_axi_rvalid  <= 1'b0;
-            s_axi_rresp   <= 2'b00;
-            s_axi_rdata   <= 32'd0;
+            s_axi_arready       <= 1'b1;
+            s_axi_rvalid        <= 1'b0;
+            s_axi_rresp         <= 2'b00;
+            s_axi_rdata         <= 32'd0;
+            status_read_latched <= 1'b0;
+        end else if (wdt_rst) begin
+            status_read_latched <= 1'b0;
         end else begin
             if (s_axi_arvalid && s_axi_arready) begin
-                s_axi_arready <= 1'b0;
+                s_axi_arready       <= 1'b0;
+                status_read_latched <= (ar_off == 8'h14);
                 case (ar_off)
                     // Key readback
                     8'h00: s_axi_rdata <= key_r[127:96];
@@ -607,17 +689,24 @@ module aes #(
                     8'h08: s_axi_rdata <= key_r[ 63:32];
                     8'h0C: s_axi_rdata <= key_r[ 31: 0];
                     // CTRL
-                    8'h10: s_axi_rdata <= {30'd0, key_valid_r, 1'b0};  // START is pulse
+                    8'h10: s_axi_rdata <= {29'd0, mode_ctr_r, key_valid_r, 1'b0};  // START is pulse
                     // STATUS (reading DONE clears it)
-                    8'h14: begin
-                               s_axi_rdata <= {30'd0, busy_r, done_r};
-                               // done_r cleared after read
-                           end
+                    8'h14: s_axi_rdata <= {30'd0, busy_r, done_r};
+                    // Plaintext
+                    8'h18: s_axi_rdata <= plaintext_r[127:96];
+                    8'h1C: s_axi_rdata <= plaintext_r[ 95:64];
+                    8'h20: s_axi_rdata <= plaintext_r[ 63:32];
+                    8'h24: s_axi_rdata <= plaintext_r[ 31: 0];
                     // Ciphertext
                     8'h28: s_axi_rdata <= ciphertext_r[127:96];
                     8'h2C: s_axi_rdata <= ciphertext_r[ 95:64];
                     8'h30: s_axi_rdata <= ciphertext_r[ 63:32];
                     8'h34: s_axi_rdata <= ciphertext_r[ 31: 0];
+                    // IV / CTR readback
+                    8'h38: s_axi_rdata <= iv_ctr_r[127:96];
+                    8'h3C: s_axi_rdata <= iv_ctr_r[ 95:64];
+                    8'h40: s_axi_rdata <= iv_ctr_r[ 63:32];
+                    8'h44: s_axi_rdata <= iv_ctr_r[ 31: 0];
                     default: s_axi_rdata <= 32'd0;
                 endcase
                 s_axi_rresp  <= 2'b00;
@@ -625,12 +714,13 @@ module aes #(
             end
 
             // Clear done only after STATUS read is consumed by master with DONE=1
-            if (s_axi_rvalid && s_axi_rready && s_axi_rdata[0])
+            if (s_axi_rvalid && s_axi_rready && status_read_latched && s_axi_rdata[0])
                 done_r <= 1'b0;
 
             if (s_axi_rvalid && s_axi_rready) begin
-                s_axi_rvalid  <= 1'b0;
-                s_axi_arready <= 1'b1;
+                s_axi_rvalid        <= 1'b0;
+                s_axi_arready       <= 1'b1;
+                status_read_latched <= 1'b0;
             end
         end
     end

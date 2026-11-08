@@ -117,8 +117,8 @@ $(HEX): $(BIN)
 # ---- Standalone IP & Interconnect Simulations (Icarus Verilog) --------------
 sim_interconnect: | $(BUILD_DIR)
 	iverilog -g2012 -Wall $(INC_DIRS) -o $(BUILD_DIR)/sim_interconnect \
-	    $(INTERCONNECT_SRCS) $(TB_DIR)/interconnect/tb_interconnect.sv
-	cd $(BUILD_DIR) && vvp sim_interconnect
+	    $(INTERCONNECT_SRCS) $(IP_SRCS) $(TB_DIR)/interconnect/tb_interconnect.sv
+	vvp $(BUILD_DIR)/sim_interconnect
 
 sim_cpu_adapter: | $(BUILD_DIR)
 	iverilog -g2012 -Wall $(INC_DIRS) -o $(BUILD_DIR)/sim_cpu_adapter \
@@ -137,7 +137,7 @@ sim_dma: | $(BUILD_DIR)
 
 sim_watchdog: | $(BUILD_DIR)
 	iverilog -g2012 -Wall $(INC_DIRS) -o $(BUILD_DIR)/sim_watchdog \
-	    $(RTL_DIR)/peripherals/watchdog.v $(TB_DIR)/ip/tb_watchdog.sv
+	    $(RTL_DIR)/peripherals/watchdog.v $(RTL_DIR)/security/aes.v $(RTL_DIR)/dma/dma.v $(TB_DIR)/ip/tb_watchdog.sv
 	cd $(BUILD_DIR) && vvp sim_watchdog
 
 # ---- SoC Top Hardware Testbench Simulation ----------------------------------

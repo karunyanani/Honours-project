@@ -23,6 +23,33 @@ static inline void aes_set_key(const uint32_t key[AES_KEY_WORDS])
     AES_CTRL = AES_KEY_VALID_BIT;
 }
 
+/* Configure AES mode (1 = CTR mode, 0 = ECB mode). */
+static inline void aes_set_ctr_mode(int enable)
+{
+    if (enable)
+        AES_CTRL = AES_KEY_VALID_BIT | AES_CTR_MODE_BIT;
+    else
+        AES_CTRL = AES_KEY_VALID_BIT;
+}
+
+/* Set 128-bit Initial Vector / Counter for CTR mode (iv[0]=MSW, iv[3]=LSW). */
+static inline void aes_set_iv(const uint32_t iv[AES_BLOCK_WORDS])
+{
+    AES_IV0 = iv[0];
+    AES_IV1 = iv[1];
+    AES_IV2 = iv[2];
+    AES_IV3 = iv[3];
+}
+
+/* Read back current 128-bit IV / Counter. */
+static inline void aes_get_iv(uint32_t iv[AES_BLOCK_WORDS])
+{
+    iv[0] = AES_IV0;
+    iv[1] = AES_IV1;
+    iv[2] = AES_IV2;
+    iv[3] = AES_IV3;
+}
+
 /* Load 128-bit plaintext (pt[0] = MSW, pt[3] = LSW) and start encryption.
  * Assumes aes_set_key() has already been called.
  * Non-blocking: use aes_wait_done() + aes_read_ciphertext() to get result. */
