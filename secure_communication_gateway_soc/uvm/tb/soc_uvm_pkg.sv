@@ -85,6 +85,12 @@ package soc_uvm_pkg;
     `include "../sequences/soc_access_control_seq.sv"
     `include "../sequences/soc_gateway_pipeline_seq.sv"
     `include "../sequences/soc_wdt_recovery_seq.sv"
+    `include "../sequences/soc_aes_seq.sv"
+    `include "../sequences/soc_dma_seq.sv"
+    `include "../sequences/soc_mem_seq.sv"
+    `include "../sequences/soc_stress_seq.sv"
+    `include "../sequences/soc_spi_seq.sv"
+    `include "../sequences/soc_uart_seq.sv"
 
     // Tests
     `include "../tests/soc_base_test.sv"
@@ -92,6 +98,12 @@ package soc_uvm_pkg;
     `include "../tests/soc_access_control_test.sv"
     `include "../tests/soc_gateway_pipeline_test.sv"
     `include "../tests/soc_wdt_recovery_test.sv"
+    `include "../tests/soc_aes_test.sv"
+    `include "../tests/soc_dma_test.sv"
+    `include "../tests/soc_mem_test.sv"
+    `include "../tests/soc_stress_test.sv"
+    `include "../tests/soc_spi_test.sv"
+    `include "../tests/soc_uart_test.sv"
 
 endpackage : soc_uvm_pkg
 

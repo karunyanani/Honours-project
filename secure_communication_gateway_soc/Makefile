@@ -162,6 +162,51 @@ sim_basic_c: basic_firmware | $(BUILD_DIR)
 sim_vcs_uvm:
 	./scripts/run_vcs_uvm.sh soc_gateway_pipeline_test
 
+sim_uvm_all:
+	./scripts/run_all_uvm_tests.sh --all
+
+sim_uvm_pipeline:
+	./scripts/run_all_uvm_tests.sh soc_gateway_pipeline_test
+
+sim_uvm_regs:
+	./scripts/run_all_uvm_tests.sh soc_reg_access_test
+
+sim_uvm_access:
+	./scripts/run_all_uvm_tests.sh soc_access_control_test
+
+sim_uvm_wdt:
+	./scripts/run_all_uvm_tests.sh soc_wdt_recovery_test
+
+sim_uvm_aes:
+	./scripts/run_all_uvm_tests.sh soc_aes_test
+
+sim_uvm_dma:
+	./scripts/run_all_uvm_tests.sh soc_dma_test
+
+sim_uvm_mem:
+	./scripts/run_all_uvm_tests.sh soc_mem_test
+
+sim_uvm_stress:
+	./scripts/run_all_uvm_tests.sh soc_stress_test
+
+sim_uvm_spi:
+	./scripts/run_all_uvm_tests.sh soc_spi_test
+
+sim_uvm_uart:
+	./scripts/run_all_uvm_tests.sh soc_uart_test
+
+sim_uvm_aes_block:
+	./scripts/run_all_uvm_tests.sh --block aes
+
+sim_uvm_dma_block:
+	./scripts/run_all_uvm_tests.sh --block dma
+
+sim_uvm_wdt_block:
+	./scripts/run_all_uvm_tests.sh --block watchdog
+
+sim_uvm_interconnect_block:
+	./scripts/run_all_uvm_tests.sh --block interconnect
+
 verdi:
 	./scripts/run_verdi.sh soc_uvm.fsdb
 

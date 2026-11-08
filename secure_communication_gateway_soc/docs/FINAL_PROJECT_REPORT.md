@@ -295,17 +295,37 @@ uvm/
 │   ├── soc_reg_access_seq.sv
 │   ├── soc_access_control_seq.sv
 │   ├── soc_gateway_pipeline_seq.sv
-│   └── soc_wdt_recovery_seq.sv
+│   ├── soc_wdt_recovery_seq.sv
+│   ├── soc_aes_seq.sv
+│   ├── soc_dma_seq.sv
+│   ├── soc_mem_seq.sv
+│   ├── soc_stress_seq.sv
+│   ├── soc_spi_seq.sv
+│   └── soc_uart_seq.sv
 ├── tests/
 │   ├── soc_base_test.sv
 │   ├── soc_reg_access_test.sv
 │   ├── soc_access_control_test.sv
 │   ├── soc_gateway_pipeline_test.sv
-│   └── soc_wdt_recovery_test.sv
+│   ├── soc_wdt_recovery_test.sv
+│   ├── soc_aes_test.sv
+│   ├── soc_dma_test.sv
+│   ├── soc_mem_test.sv
+│   ├── soc_stress_test.sv
+│   ├── soc_spi_test.sv
+│   └── soc_uart_test.sv
 ├── tb/
-│   ├── soc_uvm_pkg.sv   # Package wrapping all UVM VIP components
-│   └── tb_top.sv        # Top module with DUT, all VIP interfaces, and Verdi FSDB dumping
-└── uvm_filelist.f       # VCS compilation filelist
+│   ├── soc_uvm_pkg.sv          # Package wrapping all UVM VIP components
+│   ├── tb_top.sv               # Top module with full SoC DUT, VIPs & Verdi FSDB dumping
+│   ├── tb_aes_uvm.sv           # Dedicated Block-Level UVM Testbench for AES-128 Engine
+│   ├── tb_dma_uvm.sv           # Dedicated Block-Level UVM Testbench for DMA Controller
+│   ├── tb_watchdog_uvm.sv      # Dedicated Block-Level UVM Testbench for Watchdog Timer
+│   └── tb_interconnect_uvm.sv  # Dedicated Block-Level UVM Testbench for 2x9 Interconnect
+├── uvm_filelist.f              # VCS compilation filelist for SoC Top
+├── uvm_aes_filelist.f          # Block filelist for AES
+├── uvm_dma_filelist.f          # Block filelist for DMA
+├── uvm_watchdog_filelist.f     # Block filelist for Watchdog
+└── uvm_interconnect_filelist.f # Block filelist for Interconnect
 ```
 
 ### 9.2 Synopsys VCS & Verdi Execution Scripts

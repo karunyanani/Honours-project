@@ -53,7 +53,7 @@ class soc_access_control_seq extends soc_base_seq;
             `uvm_error("SEC_SEQ", $sformatf("DMA->DMEM failed: resp=%0d data=0x%08h", resp, rdata))
 
         // B. AES Engine (0x10000300)
-        axi_read(32'h1000_0334, rdata, resp, 8'h10);
+        axi_read(32'h1000_0314, rdata, resp, 8'h10); // AES_STATUS at offset 0x14
         if (resp !== 2'b00)
             `uvm_error("SEC_SEQ", $sformatf("DMA->AES status read failed: resp=%0d", resp))
 

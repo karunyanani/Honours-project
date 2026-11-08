@@ -26,20 +26,20 @@ class soc_wdt_recovery_seq extends soc_base_seq;
         axi_write(32'h1000_0300, 32'hDEAD_BEEF);
 
         // 3. Configure short Watchdog Timeout (100 cycles) and Enable
-        axi_write(32'h1000_0600, 32'd100);       // TIMEOUT
-        axi_write(32'h1000_0608, 32'h0000_0001); // CTRL (EN=1)
+        axi_write(32'h1000_0604, 32'd100);       // TIMEOUT (offset 0x04)
+        axi_write(32'h1000_0608, 32'h0000_0001); // CTRL (EN=1 at offset 0x08)
 
         // 4. Intentionally withhold feeding (stall datapath) and poll STATUS
         `uvm_info("WDT_SEQ", "Withholding feed to induce stall...", UVM_MEDIUM)
 
         do begin
-            axi_read(32'h1000_060C, rdata, resp); // STATUS
-        end while (rdata[1] !== 1'b1); // Bit 1 = EXPIRED / RESET_TRIGGERED
+            axi_read(32'h1000_060C, rdata, resp); // RESET_CAUSE (offset 0x0C)
+        end while (rdata[0] !== 1'b1); // Bit 0 = RESET_CAUSE[0]
 
         `uvm_info("WDT_SEQ", "Watchdog Timeout triggered! Checking Scoped Reset...", UVM_MEDIUM)
 
-        // 5. Verify Reset Cause Register (Offset 0x10) records 0x01
-        axi_read(32'h1000_0610, rdata, resp);
+        // 5. Verify Reset Cause Register (Offset 0x0C) records 0x01
+        axi_read(32'h1000_060C, rdata, resp);
         if (rdata[0] !== 1'b1)
             `uvm_error("WDT_SEQ", $sformatf("Reset Cause register mismatch: 0x%08h", rdata))
 
@@ -48,9 +48,9 @@ class soc_wdt_recovery_seq extends soc_base_seq;
         if (rdata !== 32'hA5A5_5A5A)
             `uvm_error("WDT_SEQ", $sformatf("DMEM data corrupted across WDT reset: 0x%08h", rdata))
 
-        // 7. Verify W1C (Write-1-to-Clear) on Reset Cause
-        axi_write(32'h1000_0610, 32'h0000_0001); // W1C
-        axi_read (32'h1000_0610, rdata, resp);
+        // 7. Verify W1C (Write-1-to-Clear) on Reset Cause (Offset 0x0C)
+        axi_write(32'h1000_060C, 32'h0000_0001); // W1C
+        axi_read (32'h1000_060C, rdata, resp);
         if (rdata[0] !== 1'b0)
             `uvm_error("WDT_SEQ", "W1C on Reset Cause failed: bit 0 did not clear")
 
