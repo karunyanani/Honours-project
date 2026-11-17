@@ -1,0 +1,38 @@
+Signal Name,Direction,Width,Clock Domain,Description,Protocol / Modport
+clk,Input,1,System,Reference system clock (50 MHz),Clock
+rst,Input,1,System,Active-high synchronous system reset,Reset
+awid,Output,8,clk,Write address transaction ID,AW Channel / Master
+awaddr,Output,32,clk,Write address vector,AW Channel / Master
+awlen,Output,8,clk,Burst length (0 = single beat),AW Channel / Master
+awsize,Output,3,clk,Burst size (010 = 4 bytes / 32-bit),AW Channel / Master
+awburst,Output,2,clk,Burst type (01 = INCR),AW Channel / Master
+awlock,Output,1,clk,Lock type indicator,AW Channel / Master
+awcache,Output,4,clk,Memory cache type attributes,AW Channel / Master
+awprot,Output,3,clk,Protection type attributes,AW Channel / Master
+awvalid,Output,1,clk,Write address valid handshake,AW Channel / Master
+awready,Input,1,clk,Write address ready handshake from slave,AW Channel / Slave
+wdata,Output,32,clk,Write data bus,W Channel / Master
+wstrb,Output,4,clk,Write byte strobes (1 bit per byte lane),W Channel / Master
+wlast,Output,1,clk,Write last beat indicator,W Channel / Master
+wvalid,Output,1,clk,Write data valid handshake,W Channel / Master
+wready,Input,1,clk,Write data ready handshake from slave,W Channel / Slave
+bid,Input,8,clk,Write response transaction ID,B Channel / Slave
+bresp,Input,2,clk,Write response status (00=OKAY 11=DECERR),B Channel / Slave
+bvalid,Input,1,clk,Write response valid handshake,B Channel / Slave
+bready,Output,1,clk,Write response ready handshake from master,B Channel / Master
+arid,Output,8,clk,Read address transaction ID,AR Channel / Master
+araddr,Output,32,clk,Read address vector,AR Channel / Master
+arlen,Output,8,clk,Read burst length (0 = single beat),AR Channel / Master
+arsize,Output,3,clk,Read burst size (010 = 4 bytes / 32-bit),AR Channel / Master
+arburst,Output,2,clk,Read burst type (01 = INCR),AR Channel / Master
+arlock,Output,1,clk,Read lock type indicator,AR Channel / Master
+arcache,Output,4,clk,Read memory cache attributes,AR Channel / Master
+arprot,Output,3,clk,Read protection attributes,AR Channel / Master
+arvalid,Output,1,clk,Read address valid handshake,AR Channel / Master
+arready,Input,1,clk,Read address ready handshake from slave,AR Channel / Slave
+rid,Input,8,clk,Read response transaction ID,R Channel / Slave
+rdata,Input,32,clk,Read data bus,R Channel / Slave
+rresp,Input,2,clk,Read response status (00=OKAY 11=DECERR),R Channel / Slave
+rlast,Input,1,clk,Read last beat indicator,R Channel / Slave
+rvalid,Input,1,clk,Read data valid handshake,R Channel / Slave
+rready,Output,1,clk,Read data ready handshake from master,R Channel / Master

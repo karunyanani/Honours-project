@@ -1,0 +1,6 @@
+Signal Name,Direction,Width,Clock Domain,Description,Protocol / Modport
+clk,Input,1,System,Reference system clock (50 MHz),Clock
+rst,Input,1,System,Active-high synchronous reset,Reset
+gpio_irq,Input,1,clk,Edge-detected interrupt from GPIO peripheral,Interrupt
+timer_irq,Input,1,clk,Countdown expiration interrupt from Hardware Timer,Interrupt
+wdt_fired,Input,1,clk,Watchdog scoped fault recovery reset trigger pulse,Fault Event

@@ -1,0 +1,5 @@
+Signal Name,Direction,Width,Clock Domain,Description,Protocol / Modport
+clk,Input,1,System,Reference system clock (50 MHz),Clock
+rst,Input,1,System,Active-high synchronous reset,Reset
+uart_tx,Input,1,Async/Baud,SoC UART serial output received by UART VIP monitor,Serial 8N1
+uart_rx,Output,1,Async/Baud,UART VIP driver serial input into SoC UART controller,Serial 8N1

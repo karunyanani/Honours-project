@@ -1,0 +1,7 @@
+Signal Name,Direction,Width,Clock Domain,Description,Protocol / Modport
+clk,Input,1,System,Reference system clock (50 MHz),Clock
+rst,Input,1,System,Active-high synchronous reset,Reset
+gpio_in,Output,8,clk,External GPIO pad inputs driven by GPIO VIP into SoC,Parallel I/O
+gpio_out,Input,8,clk,SoC GPIO pad outputs sampled by GPIO VIP monitor,Parallel I/O
+gpio_oe,Input,8,clk,SoC GPIO pad output enable masks sampled by VIP monitor,Parallel I/O
+gpio_irq,Input,1,clk,GPIO edge-detect interrupt line sampled by VIP monitor,Interrupt
