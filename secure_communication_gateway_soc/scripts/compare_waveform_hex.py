@@ -48,6 +48,29 @@ def parse_disassembly(dis_path):
                 dis[addr] = (cur_symbol, hex_code, instr)
     return dis
 
+def extract_vcd_symbols(vcd_path):
+    """Dynamically parses the VCD header to map hierarchical signal names to tokens."""
+    scope = []
+    sym_map = {}
+    with open(vcd_path, "r") as f:
+        for line in f:
+            line = line.strip()
+            if line.startswith("$scope"):
+                scope.append(line.split()[2])
+            elif line.startswith("$upscope"):
+                if scope:
+                    scope.pop()
+            elif line.startswith("$var"):
+                parts = line.split()
+                if len(parts) >= 5:
+                    sym = parts[3]
+                    name = parts[4]
+                    fullname = ".".join(scope + [name])
+                    sym_map[fullname] = sym
+            elif line.startswith("$enddefinitions"):
+                break
+    return sym_map
+
 def analyze_vcd(vcd_path, hex_words, dis_map):
     """
     Parses VCD trace for instruction fetch handshakes.
@@ -57,24 +80,26 @@ def analyze_vcd(vcd_path, hex_words, dis_map):
       - Whenever s_axi_rvalid && s_axi_rready fires on clk posedge,
         dequeues the address and verifies s_axi_rdata against firmware.hex.
     """
-    # Signal symbol identifiers in VCD:
-    # clk          = '/'
-    # s_axi_araddr = 'p%'
-    # s_axi_arvalid = 'r%'
-    # s_axi_arready = ')&'
-    # s_axi_rdata  = '-&'
-    # s_axi_rvalid = '/&'
-    # s_axi_rready = 'w%'
+    sym_map = extract_vcd_symbols(vcd_path)
+    imem_prefix = "tb_soc_firmware.u_dut.u_imem."
+
+    clk_sym = sym_map.get(imem_prefix + "clk", "/")
+    araddr_sym = sym_map.get(imem_prefix + "s_axi_araddr", "v%")
+    arvalid_sym = sym_map.get(imem_prefix + "s_axi_arvalid", "x%")
+    arready_sym = sym_map.get(imem_prefix + "s_axi_arready", "/&")
+    rdata_sym = sym_map.get(imem_prefix + "s_axi_rdata", "3&")
+    rvalid_sym = sym_map.get(imem_prefix + "s_axi_rvalid", "5&")
+    rready_sym = sym_map.get(imem_prefix + "s_axi_rready", "}%")
 
     cur_time = 0
     signals = {
-        "/":  "0",   # clk
-        "p%": "0",   # araddr
-        "r%": "0",   # arvalid
-        ")&": "0",   # arready
-        "-&": "0",   # rdata
-        "/&": "0",   # rvalid
-        "w%": "0",   # rready
+        clk_sym: "0",
+        araddr_sym: "0",
+        arvalid_sym: "0",
+        arready_sym: "0",
+        rdata_sym: "0",
+        rvalid_sym: "0",
+        rready_sym: "0",
     }
 
     ar_queue = []
@@ -109,20 +134,20 @@ def analyze_vcd(vcd_path, hex_words, dis_map):
                 signals[line[1:]] = line[0]
 
             # Trigger strictly on rising edge of clock: clk transitioning 0 -> 1
-            if signals["/"] == "1" and last_clk == "0":
+            if signals[clk_sym] == "1" and last_clk == "0":
                 # Check AR handshake: address acceptance
-                if signals["r%"] == "1" and signals[")&"] == "1":
+                if signals[arvalid_sym] == "1" and signals[arready_sym] == "1":
                     try:
-                        ar_addr = int(signals["p%"], 2)
+                        ar_addr = int(signals[araddr_sym], 2)
                     except ValueError:
                         ar_addr = 0
                     ar_queue.append(ar_addr)
 
                 # Check R handshake: data delivery to CPU
-                if signals["/&"] == "1" and signals["w%"] == "1" and ar_queue:
+                if signals[rvalid_sym] == "1" and signals[rready_sym] == "1" and ar_queue:
                     fetch_addr = ar_queue.pop(0)
                     try:
-                        rdata_int = int(signals["-&"], 2)
+                        rdata_int = int(signals[rdata_sym], 2)
                         rdata_hex = f"{rdata_int:08x}"
                     except ValueError:
                         rdata_hex = "00000000"
@@ -149,7 +174,7 @@ def analyze_vcd(vcd_path, hex_words, dis_map):
                                 "asm": asm
                             })
 
-            last_clk = signals["/"]
+            last_clk = signals[clk_sym]
 
     return matches, mismatches, fetch_events
 
