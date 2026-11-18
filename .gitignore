@@ -18,3 +18,9 @@ secure_communication_gateway_soc/a.out
 secure_communication_gateway_soc/build/*
 !secure_communication_gateway_soc/build/*.hex
 !secure_communication_gateway_soc/build/.gitkeep
+
+# Exclude student submission record files from git
+record/
+**/record/
+*.docx
+!secure_communication_gateway_soc/docs/FINAL_PROJECT_REPORT.docx
